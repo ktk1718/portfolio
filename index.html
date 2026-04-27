@@ -255,6 +255,7 @@ button{font-family:var(--ff);cursor:pointer;transition:all .15s;}
       <div class="pf-meta" id="main-meta"></div>
     </div>
     <div class="topbar-right">
+      <button class="btn" onclick="showDebug()" style="color:var(--amber);border-color:var(--amber)">디버그</button>
       <button class="btn" onclick="document.getElementById('modal-price-help').style.display='flex'" title="현재가 자동조회 안내">현재가 안내</button>
       <button class="btn" onclick="openAddGroupModal()">＋ 자산군 추가</button>
       <button class="btn btn-blue" onclick="openPfEdit()">편집</button>
@@ -281,6 +282,7 @@ button{font-family:var(--ff);cursor:pointer;transition:all .15s;}
   <div class="tab-row">
     <button class="tab-btn active" onclick="setTab('holdings',this)">보유 종목</button>
     <button class="tab-btn" onclick="setTab('rebal',this)">리밸런싱</button>
+    <button class="tab-btn" onclick="setTab('rebal-history',this)">리밸런싱 이력</button>
   </div>
 
   <div class="tab-pane active" id="tab-holdings">
@@ -306,7 +308,15 @@ button{font-family:var(--ff);cursor:pointer;transition:all .15s;}
       <div style="margin-top:14px;padding:11px 13px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--txt3);line-height:1.7;border:1px solid var(--bdr);">
         자산군 목표비중 기준으로 계산합니다. <strong style="color:var(--txt2)">구매중지 종목은 제외</strong>하고 나머지 종목들로 자산군 비중을 맞춥니다. 예수금 내에서 최대한 목표비중에 근접하게 계산합니다.
       </div>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-blue" onclick="saveRebalHistory()">이 리밸런싱 이력으로 저장</button>
+        <input id="rebal-memo" placeholder="메모 (예: 4월 말 리밸런싱)" style="flex:1;min-width:180px;font-size:12px;padding:6px 10px;"/>
+      </div>
     </div>
+  </div>
+
+  <div class="tab-pane" id="tab-rebal-history">
+    <div id="rebal-history-container"></div>
   </div>
 </div>
 </div>
@@ -449,6 +459,15 @@ button{font-family:var(--ff);cursor:pointer;transition:all .15s;}
     <div class="mbtns" style="margin-top:14px">
       <button class="btn btn-blue" onclick="closeModal('price-help')">닫기</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL: 디버그 -->
+<div id="modal-debug" style="display:none" class="modal-bg" onclick="if(event.target===this)closeModal('debug')">
+  <div class="modal" style="width:540px">
+    <h3>리밸런싱 디버그</h3>
+    <div id="debug-content" style="font-family:var(--fm);font-size:12px;line-height:2;color:var(--txt2);"></div>
+    <div class="mbtns" style="margin-top:12px"><button class="btn btn-blue" onclick="closeModal('debug')">닫기</button></div>
   </div>
 </div>
 
@@ -825,17 +844,11 @@ function renderGroups(pf){
 
 function renderItemTable(g,pf){
   if(g.items.length===0)return`<div style="padding:12px 14px;font-size:12px;color:var(--txt3)">종목이 없습니다. [＋종목] 버튼으로 추가하세요.</div>`;
+  let ge=groupEval(g);
   let rows=g.items.map(item=>{
     let ev=item.price*item.qty;
-    let aw=itemActualW(item,pf);
-    let tw=itemTargetW(item,g,pf);
-    let gp=itemGap(item,g,pf);
-
-    let twCell=tw!==null?`${tw.toFixed(2)}%`:`<span style="color:var(--txt3);font-size:11px">구매중지</span>`;
-    let gpCell=gp===null?`<span style="color:var(--txt3);font-size:11px">-</span>`
-      :Math.abs(gp)<1?`<span class="item-gap-ok">±${Math.abs(gp).toFixed(2)}%</span>`
-      :gp>0?`<span class="item-gap-pos">+${gp.toFixed(2)}%</span>`
-      :`<span class="item-gap-neg">${gp.toFixed(2)}%</span>`;
+    let aw=itemActualW(item,pf);           // 전체 자산 대비 실제비중
+    let gShare=ge>0?ev/ge*100:0;           // 자산군 내 비중
 
     let statusHtml=item.status==='구매'
       ?`<span class="status-buy">구매</span>`
@@ -852,9 +865,7 @@ function renderItemTable(g,pf){
     return `<tr>
       <td><span class="item-name">${item.name}</span>${item.ticker?`<br><span class="ticker-badge">${item.ticker}</span>`:''}</td>
       <td>${statusHtml}</td>
-      <td class="mono">${aw.toFixed(2)}%</td>
-      <td class="mono">${twCell}</td>
-      <td>${gpCell}</td>
+      <td class="mono">${aw.toFixed(2)}%<br><span style="font-size:10px;color:var(--txt3)">군내 ${gShare.toFixed(1)}%</span></td>
       <td class="mono">${item.qty}</td>
       <td class="mono">${item.avg>0?`<span style="color:var(--txt3);font-size:11px">평균</span> ${avgCell}${retHtml}<br>`:''}${item.price.toLocaleString()}</td>
       <td class="mono">${fmt(ev)}원</td>
@@ -866,7 +877,7 @@ function renderItemTable(g,pf){
   }).join('');
   return`<table>
     <thead><tr>
-      <th>종목명</th><th>상태</th><th>실제비중</th><th>자산군내목표</th><th>이격률</th>
+      <th>종목명</th><th>상태</th><th>실제비중 (군내)</th>
       <th>수량</th><th>현재가</th><th>평가액</th><th></th>
     </tr></thead>
     <tbody>${rows}</tbody>
@@ -889,52 +900,60 @@ function renderRebal(){
   if(!ci._set){ci.value=pf.cash;ci._set=true;}
   let budget=(parseFloat(ci.value)||0)+(parseFloat(document.getElementById('rebal-extra').value)||0);
   let ta=pfEval(pf)+budget;
-
   let totalBuy=0;let remain=budget;let html='';
 
-  // 자산군별로 계산
+  // 1단계: 부족 자산군 수집 + 이격률 계산
+  let groupPlans=[];
   pf.groups.forEach(g=>{
-    let gTargetVal=ta*g.target/100;
     let gCurVal=groupEval(g);
-    let gDiff=gTargetVal-gCurVal;
-
-    // 구매 가능 종목만
+    let gDiff=ta*g.target/100-gCurVal;
+    if(gDiff<=0)return;
     let activeItems=g.items.filter(x=>x.status==='구매');
     if(activeItems.length===0)return;
-    if(gDiff<=0)return; // 자산군 비중이 목표 초과
+    let gapPct=g.target-groupActualW(g,pf); // 실제 이격률 (양수 = 부족)
+    groupPlans.push({g,gCurVal,gDiff,gapPct,activeItems});
+  });
 
-    // 자산군 내 구매중인 종목의 현재 평가액 비율로 목표 배분
+  if(groupPlans.length===0){
+    document.getElementById('rebal-summary').textContent=`예수금 ${fmt(budget)}원`;
+    document.getElementById('rebal-result').innerHTML=`<p style="font-size:13px;color:var(--txt3);padding:8px 0">모든 자산군이 목표비중을 충족하고 있습니다.</p>`;
+    return;
+  }
+
+  // 2단계: 이격률 비율로 예수금 배분 (단, 실제 부족금액 초과 불가)
+  let totalGap=groupPlans.reduce((s,p)=>s+p.gapPct,0);
+  groupPlans.forEach(p=>{
+    p.allocated=totalGap>0
+      ? Math.min(budget*(p.gapPct/totalGap), p.gDiff)
+      : p.gDiff;
+  });
+
+  // 3단계: 이격률 큰 순, 배분 예산 내에서 살 수 있는 만큼 매수
+  groupPlans.sort((a,b)=>b.gapPct-a.gapPct);
+
+  groupPlans.forEach(plan=>{
+    let {g,gCurVal,activeItems,allocated}=plan;
+
+    // 구매중 종목의 현재 평가액 비율로 배분 예산 분배
     let activeEval=activeItems.reduce((s,x)=>s+x.price*x.qty,0);
     let buys=[];
     activeItems.forEach(item=>{
       let ratio=activeEval>0?(item.price*item.qty)/activeEval:1/activeItems.length;
-      let itemTargetVal=gTargetVal*ratio;
-      let itemCurVal=item.price*item.qty;
-      let diff=itemTargetVal-itemCurVal;
-      if(diff>item.price*0.5){
-        let qty=Math.floor(diff/item.price);
-        if(qty>0){
-          let cost=qty*item.price;
-          buys.push({name:item.name,ticker:item.ticker,qty,cost,
-            newActualW:(itemCurVal+cost)/ta*100,
-            newGroupW:(gCurVal+cost)/ta*100,
-            targetW:g.target});
-        }
-      }
+      let itemBudget=allocated*ratio;
+      // 배분 예산으로 살 수 있는 최대 수량 (단, 잔여 예수금 초과 불가)
+      let maxQtyByBudget=Math.floor(itemBudget/item.price);
+      let maxQtyByRemain=Math.floor(remain/item.price);
+      let qty=Math.min(maxQtyByBudget, maxQtyByRemain);
+      if(qty<1)return;
+      let cost=qty*item.price;
+      buys.push({name:item.name,ticker:item.ticker,qty,cost,curVal:item.price*item.qty});
     });
+
     if(buys.length===0)return;
 
-    let groupCost=buys.reduce((s,x)=>s+x.cost,0);
-    if(remain<=0)return;
-
-    // 예수금 내에서 가능한 매수만
-    let feasible=[];let groupRemain=Math.min(remain,groupCost);
-    buys.sort((a,b)=>b.cost-a.cost);
-    buys.forEach(b=>{if(groupRemain>=b.cost){groupRemain-=b.cost;feasible.push(b);}});
-    if(feasible.length===0)return;
-
-    let usedCost=feasible.reduce((s,x)=>s+x.cost,0);
-    remain-=usedCost;totalBuy+=usedCost;
+    let usedCost=buys.reduce((s,b)=>s+b.cost,0);
+    remain-=usedCost;
+    totalBuy+=usedCost;
 
     let gaw=groupActualW(g,pf);
     let gnaw=(gCurVal+usedCost)/ta*100;
@@ -948,19 +967,19 @@ function renderRebal(){
         </span>
       </div>
       <div class="rebal-grid">
-        ${feasible.map(b=>`
+        ${buys.map(b=>`
           <div class="rebal-item">
             <div class="ri-name">${b.name}</div>
             <div class="ri-qty neg">${b.qty}<span class="ri-qty-unit">주 매수</span></div>
             <div class="ri-cost">−${fmt(b.cost)}원</div>
-            <div class="ri-after">매수 후 ${b.newActualW.toFixed(2)}%</div>
+            <div class="ri-after">매수 후 ${((b.curVal+b.cost)/ta*100).toFixed(2)}%</div>
           </div>
         `).join('')}
       </div>
     </div>`;
   });
 
-  if(!html)html=`<p style="font-size:13px;color:var(--txt3);padding:8px 0">매수가 필요한 자산군이 없거나 예수금이 부족합니다.</p>`;
+  if(!html)html=`<p style="font-size:13px;color:var(--txt3);padding:8px 0">예수금으로 매수 가능한 종목이 없습니다. 추가 입금을 늘려보세요.</p>`;
   html+=`<div class="rebal-item" style="border-color:rgba(77,157,224,.3);margin-top:8px;background:var(--bg2)">
     <div class="ri-name" style="color:var(--txt2)">잔여 예수금</div>
     <div class="ri-amt info">${fmt(remain)}원</div>
@@ -969,6 +988,7 @@ function renderRebal(){
   document.getElementById('rebal-summary').textContent=`예수금 ${fmt(budget)}원 · 총 매수금액 ${fmt(totalBuy)}원`;
   document.getElementById('rebal-result').innerHTML=html;
 }
+
 
 // ── MODAL: 포트폴리오 ─────────────────────────────────────
 function openNewPfModal(){
@@ -1125,6 +1145,149 @@ function setTab(id,el){
   el.classList.add('active');
   document.getElementById('tab-'+id).classList.add('active');
   if(id==='rebal'){document.getElementById('rebal-cash')._set=false;renderRebal();}
+  if(id==='rebal-history'){renderRebalHistory();}
+}
+
+// ── REBAL HISTORY ─────────────────────────────────────────
+function rebalHistKey(pfId){return `rebal_hist_${pfId}`;}
+function loadRebalHist(pfId){try{return JSON.parse(localStorage.getItem(rebalHistKey(pfId)))||[];}catch(e){return[];}}
+function saveRebalHist(pfId,list){localStorage.setItem(rebalHistKey(pfId),JSON.stringify(list));}
+
+// 현재 리밸런싱 결과를 이력으로 저장
+function saveRebalHistory(){
+  let pf=curPf();if(!pf)return;
+  let ci=document.getElementById('rebal-cash');
+  let budget=(parseFloat(ci?.value)||0)+(parseFloat(document.getElementById('rebal-extra')?.value)||0);
+  let ta=pfEval(pf)+budget;
+  let memo=document.getElementById('rebal-memo')?.value.trim()||'';
+
+  // 현재 리밸런싱 결과 수집
+  let groups=[];
+  let totalBuyCalc=0;
+  pf.groups.forEach(g=>{
+    let gCurVal=groupEval(g);
+    let gDiff=ta*g.target/100-gCurVal;
+    if(gDiff<=0)return;
+    let activeItems=g.items.filter(x=>x.status==='구매');
+    if(activeItems.length===0)return;
+    let gapPct=g.target-groupActualW(g,pf);
+    let totalGap=pf.groups.reduce((s,gg)=>{
+      let d=gg.target-groupActualW(gg,pf);
+      return d>0?s+d:s;
+    },0);
+    let allocated=totalGap>0?Math.min(budget*(gapPct/totalGap),gDiff):gDiff;
+    let activeEval=activeItems.reduce((s,x)=>s+x.price*x.qty,0);
+    let items=[];
+    activeItems.forEach(item=>{
+      let ratio=activeEval>0?(item.price*item.qty)/activeEval:1/activeItems.length;
+      let qty=Math.min(Math.floor(allocated*ratio/item.price),Math.floor(budget/item.price));
+      if(qty<1)return;
+      let cost=qty*item.price;
+      totalBuyCalc+=cost;
+      items.push({name:item.name,ticker:item.ticker,qty,cost,price:item.price});
+    });
+    if(items.length>0)groups.push({name:g.name,color:g.color,gapPct,items,
+      beforeW:groupActualW(g,pf),afterW:(gCurVal+items.reduce((s,x)=>s+x.cost,0))/ta*100,targetW:g.target});
+  });
+
+  if(groups.length===0){toast('저장할 리밸런싱 내용이 없어요.');return;}
+
+  let entry={
+    id:uid(),
+    date:new Date().toISOString().split('T')[0],
+    time:new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}),
+    memo,budget,totalBuy:totalBuyCalc,
+    totalAsset:pfTotal(pf),
+    groups,
+    done:false // 실행 여부
+  };
+
+  let list=loadRebalHist(pf.id);
+  list.unshift(entry);
+  saveRebalHist(pf.id,list);
+  document.getElementById('rebal-memo').value='';
+  toast('리밸런싱 이력이 저장됐어요.');
+}
+
+function toggleRebalDone(entryId){
+  let pf=curPf();if(!pf)return;
+  let list=loadRebalHist(pf.id);
+  let e=list.find(x=>x.id===entryId);
+  if(e)e.done=!e.done;
+  saveRebalHist(pf.id,list);
+  renderRebalHistory();
+}
+
+function deleteRebalEntry(entryId){
+  if(!confirm('이 이력을 삭제할까요?'))return;
+  let pf=curPf();if(!pf)return;
+  let list=loadRebalHist(pf.id);
+  saveRebalHist(pf.id,list.filter(x=>x.id!==entryId));
+  renderRebalHistory();
+  toast('삭제됐어요.');
+}
+
+function renderRebalHistory(){
+  let pf=curPf();if(!pf)return;
+  let list=loadRebalHist(pf.id);
+  let container=document.getElementById('rebal-history-container');
+
+  if(list.length===0){
+    container.innerHTML=`<div style="text-align:center;padding:3rem 1rem;color:var(--txt3);font-size:13px;">
+      리밸런싱 이력이 없어요.<br>
+      <span style="font-size:12px;margin-top:6px;display:block">[리밸런싱] 탭에서 계산 후 [이력으로 저장] 버튼을 누르세요.</span>
+    </div>`;
+    return;
+  }
+
+  let html=list.map(e=>{
+    let doneStyle=e.done?'opacity:.6':'';
+    let doneBadge=e.done
+      ?`<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--grn-bg);color:var(--grn);border:1px solid rgba(61,214,140,.2);font-weight:500">✓ 실행완료</span>`
+      :`<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--bg3);color:var(--txt3);border:1px solid var(--bdr)">대기중</span>`;
+
+    let groupRows=e.groups.map(g=>`
+      <div style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
+          <div style="width:8px;height:8px;border-radius:50%;background:${g.color};flex-shrink:0"></div>
+          <span style="font-size:12px;font-weight:500">${g.name}</span>
+          <span style="font-size:11px;color:var(--txt3);font-family:var(--fm)">${g.beforeW.toFixed(2)}% → ${g.afterW.toFixed(2)}% (목표 ${g.targetW.toFixed(2)}%)</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;padding-left:15px">
+          ${g.items.map(item=>`
+            <div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:6px;padding:7px 10px;font-size:12px;">
+              <div style="font-weight:500;margin-bottom:2px">${item.name}</div>
+              <div style="font-family:var(--fm);font-size:15px;color:var(--red);font-weight:500">${item.qty}<span style="font-size:11px;font-weight:400">주</span></div>
+              <div style="font-family:var(--fm);font-size:11px;color:var(--txt3)">−${fmt(item.cost)}원 · ${item.price.toLocaleString()}원/주</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    return `<div style="${doneStyle}background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--bdr);flex-wrap:wrap;">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:13px;font-weight:500;font-family:var(--fm)">${e.date}</span>
+            <span style="font-size:11px;color:var(--txt3)">${e.time}</span>
+            ${doneBadge}
+            ${e.memo?`<span style="font-size:12px;color:var(--txt2)">${e.memo}</span>`:''}
+          </div>
+          <div style="font-size:11px;color:var(--txt3);margin-top:3px;font-family:var(--fm)">
+            총 매수금액 ${fmt(e.totalBuy)}원 · 예수금 ${fmt(e.budget)}원 사용
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn-sm" onclick="toggleRebalDone('${e.id}')">${e.done?'실행취소':'실행완료'}</button>
+          <button class="btn-sm btn-danger" onclick="deleteRebalEntry('${e.id}')">삭제</button>
+        </div>
+      </div>
+      <div style="padding:12px 14px">${groupRows}</div>
+    </div>`;
+  }).join('');
+
+  container.innerHTML=html;
 }
 function toggleSidebar(){
   document.getElementById('sidebar').classList.toggle('open');
@@ -1134,6 +1297,50 @@ function toast(msg){
   let el=document.getElementById('toast');
   el.textContent=msg;el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'),2300);
+}
+
+// ── DEBUG ─────────────────────────────────────────────────
+function showDebug(){
+  let pf=curPf();if(!pf)return;
+  let ci=document.getElementById('rebal-cash');
+  let budget=(parseFloat(ci?.value)||0)+(parseFloat(document.getElementById('rebal-extra')?.value)||0)||pf.cash;
+  let ta=pfEval(pf)+budget;
+  let rows='';
+  let plans=[];
+  pf.groups.forEach(g=>{
+    let ge=groupEval(g);
+    let aw=ge/ta*100;
+    let gTargetVal=ta*g.target/100;
+    let gDiff=gTargetVal-ge;
+    let gap=g.target-aw;
+    plans.push({name:g.name,target:g.target,aw,gap,ge,gDiff,color:g.color,
+      active:g.items.filter(x=>x.status==='구매').length});
+  });
+  plans.sort((a,b)=>Math.abs(b.gap)-Math.abs(a.gap));
+  rows+=`<div style="margin-bottom:8px;color:var(--txt3)">총자산 ${fmt(ta)}원 | 예수금 ${fmt(budget)}원</div>`;
+  rows+=`<table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+    <tr style="color:var(--txt3);border-bottom:1px solid var(--bdr)">
+      <td style="padding:4px 6px">자산군</td>
+      <td style="padding:4px 6px;text-align:right">목표%</td>
+      <td style="padding:4px 6px;text-align:right">실제%</td>
+      <td style="padding:4px 6px;text-align:right">이격%</td>
+      <td style="padding:4px 6px;text-align:right">부족금액</td>
+      <td style="padding:4px 6px;text-align:right">구매중</td>
+    </tr>`;
+  plans.forEach(p=>{
+    let needBuy=p.gDiff>0;
+    rows+=`<tr style="border-bottom:1px solid var(--bdr);${needBuy?'':'opacity:.45'}">
+      <td style="padding:5px 6px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px"></span>${p.name}</td>
+      <td style="padding:5px 6px;text-align:right;font-family:var(--fm)">${p.target.toFixed(2)}%</td>
+      <td style="padding:5px 6px;text-align:right;font-family:var(--fm)">${p.aw.toFixed(2)}%</td>
+      <td style="padding:5px 6px;text-align:right;font-family:var(--fm);color:${p.gap>0.5?'var(--grn)':p.gap<-0.5?'var(--red)':'var(--txt3)'}">${p.gap>0?'+':''}${p.gap.toFixed(2)}%</td>
+      <td style="padding:5px 6px;text-align:right;font-family:var(--fm);color:${needBuy?'var(--red)':'var(--txt3)'}">${needBuy?'-'+fmt(p.gDiff)+'원':'충족'}</td>
+      <td style="padding:5px 6px;text-align:right">${p.active}종목</td>
+    </tr>`;
+  });
+  rows+='</table>';
+  document.getElementById('debug-content').innerHTML=rows;
+  document.getElementById('modal-debug').style.display='flex';
 }
 
 // ── INIT ──────────────────────────────────────────────────
