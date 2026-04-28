@@ -205,6 +205,9 @@ button{font-family:var(--ff);cursor:pointer;transition:all .15s;}
 .mbtns button{flex:1;padding:9px;}
 .hint{font-size:11px;color:var(--txt3);margin-top:4px;}
 
+/* 자산군 하단 액션 (모바일 전용) */
+.group-body-actions{display:none;}
+
 /* DOT PICKER */
 .dot-picker{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;}
 .dot-opt{width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .15s;}
@@ -217,11 +220,31 @@ button{font-family:var(--ff);cursor:pointer;transition:all .15s;}
   .sidebar{transform:translateX(-100%);}
   .sidebar.open{transform:translateX(0);}
   .sidebar-overlay.open{display:block;}
-  .main{margin-left:0;padding:14px;}
+  .main{margin-left:0;padding:12px;}
   .mob-toggle{display:flex;}
   .topbar{margin-top:44px;}
   .hide-m{display:none!important;}
   .summary{grid-template-columns:1fr 1fr;}
+
+  /* 자산군 헤더 모바일 최적화 */
+  .group-header{padding:10px 12px;gap:8px;align-items:flex-start;}
+  .group-color-bar{height:20px;margin-top:3px;}
+  .group-name{font-size:13px;}
+  .gbadge{font-size:10px;padding:2px 6px;}
+  .group-actions{display:none;}
+  .group-toggle{font-size:11px;}
+
+  /* 펼쳤을 때 액션버튼 하단에 표시 */
+  .group-body-actions{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--bdr);background:var(--bg2);}
+
+  /* 테이블 모바일 스크롤 */
+  .group-body{overflow-x:auto;}
+
+  /* 리밸런싱 그리드 */
+  .rebal-grid{grid-template-columns:1fr 1fr;}
+
+  /* 탑바 버튼 줄이기 */
+  .topbar-right .btn:not(.btn-blue){display:none;}
 }
 
 /* TOAST */
@@ -281,8 +304,9 @@ button{font-family:var(--ff);cursor:pointer;transition:all .15s;}
 
   <div class="tab-row">
     <button class="tab-btn active" onclick="setTab('holdings',this)">보유 종목</button>
-    <button class="tab-btn" onclick="setTab('rebal',this)">리밸런싱</button>
-    <button class="tab-btn" onclick="setTab('rebal-history',this)">리밸런싱 이력</button>
+    <button class="tab-btn" onclick="setTab('rebal',this)">리밸런싱 (매수)</button>
+    <button class="tab-btn" onclick="setTab('rebal-full',this)">리밸런싱 (매도+매수)</button>
+    <button class="tab-btn" onclick="setTab('rebal-history',this)">이력</button>
   </div>
 
   <div class="tab-pane active" id="tab-holdings">
@@ -306,11 +330,28 @@ button{font-family:var(--ff);cursor:pointer;transition:all .15s;}
       <div id="rebal-summary" style="font-size:12px;color:var(--txt3);margin-bottom:8px;"></div>
       <div id="rebal-result"></div>
       <div style="margin-top:14px;padding:11px 13px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--txt3);line-height:1.7;border:1px solid var(--bdr);">
-        자산군 목표비중 기준으로 계산합니다. <strong style="color:var(--txt2)">구매중지 종목은 제외</strong>하고 나머지 종목들로 자산군 비중을 맞춥니다. 예수금 내에서 최대한 목표비중에 근접하게 계산합니다.
+        구매중지 종목은 제외하고 매수만으로 목표비중에 접근합니다. 예수금을 이격률 비율로 배분합니다.
       </div>
       <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <button class="btn btn-blue" onclick="saveRebalHistory()">이 리밸런싱 이력으로 저장</button>
+        <button class="btn btn-blue" onclick="saveRebalHistory('buy')">이력으로 저장</button>
         <input id="rebal-memo" placeholder="메모 (예: 4월 말 리밸런싱)" style="flex:1;min-width:180px;font-size:12px;padding:6px 10px;"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-pane" id="tab-rebal-full">
+    <div class="rebal-box">
+      <div class="rebal-title">매도 + 매수 완전 리밸런싱</div>
+      <div style="margin-bottom:12px;padding:10px 13px;background:var(--amber-bg);border:1px solid rgba(245,200,66,.2);border-radius:8px;font-size:12px;color:var(--amber);line-height:1.6;">
+        ⚠️ 초과 자산군은 <strong>매도</strong>, 부족 자산군은 <strong>매수</strong>하여 목표비중에 맞춥니다. 세금·수수료는 반영되지 않습니다.
+      </div>
+      <div id="rebal-full-result"></div>
+      <div style="margin-top:12px;padding:11px 13px;background:var(--bg3);border-radius:8px;font-size:12px;color:var(--txt3);line-height:1.7;border:1px solid var(--bdr);">
+        매도 후 예수금으로 매수합니다. 구매중지 종목도 매도 대상에 포함됩니다.
+      </div>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-blue" onclick="saveRebalHistory('full')">이력으로 저장</button>
+        <input id="rebal-full-memo" placeholder="메모 (예: 반기 리밸런싱)" style="flex:1;min-width:180px;font-size:12px;padding:6px 10px;"/>
       </div>
     </div>
   </div>
@@ -468,6 +509,22 @@ button{font-family:var(--ff);cursor:pointer;transition:all .15s;}
     <h3>리밸런싱 디버그</h3>
     <div id="debug-content" style="font-family:var(--fm);font-size:12px;line-height:2;color:var(--txt2);"></div>
     <div class="mbtns" style="margin-top:12px"><button class="btn btn-blue" onclick="closeModal('debug')">닫기</button></div>
+  </div>
+</div>
+
+<!-- MODAL: 종목 이동 -->
+<div id="modal-move" style="display:none" class="modal-bg" onclick="if(event.target===this)closeModal('move')">
+  <div class="modal">
+    <h3>종목 이동</h3>
+    <div style="font-size:12px;color:var(--txt2);margin-bottom:12px;" id="move-item-name"></div>
+    <div class="frow">
+      <label>이동할 자산군</label>
+      <select id="move-target-group"></select>
+    </div>
+    <div class="mbtns">
+      <button class="btn" onclick="closeModal('move')">취소</button>
+      <button class="btn btn-blue" onclick="confirmMoveItem()">이동</button>
+    </div>
   </div>
 </div>
 
@@ -813,21 +870,25 @@ function renderGroups(pf){
     <div class="group-block">
       <div class="group-header" onclick="toggleGroup('${g.id}')">
         <div class="group-color-bar" style="background:${g.color}"></div>
-        <div class="group-info">
-          <div class="group-name">${g.name}</div>
-          <div class="group-desc">${descParts.join(' · ')} · 평가 ${fmt(ge)}원</div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <div class="group-name">${g.name}</div>
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+              <div class="group-actions" onclick="event.stopPropagation()">
+                <button class="btn-sm" onclick="openEditGroupModal('${g.id}')">편집</button>
+                <button class="btn-sm" onclick="openAddItemModal('${g.id}')">＋종목</button>
+                <button class="btn-sm btn-danger" onclick="deleteGroup('${g.id}')">삭제</button>
+              </div>
+              <div class="group-toggle${g.open?' open':''}" id="toggle-${g.id}">▼</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap;">
+            <span class="gbadge gb-target">목표 ${g.target.toFixed(2)}%</span>
+            <span class="gbadge gb-actual">실제 ${aw.toFixed(2)}%</span>
+            ${gapBadge}
+            <span style="font-size:10px;color:var(--txt3);margin-left:2px">${fmt(ge)}원</span>
+          </div>
         </div>
-        <div class="group-badges">
-          <span class="gbadge gb-target">목표 ${g.target.toFixed(2)}%</span>
-          <span class="gbadge gb-actual">실제 ${aw.toFixed(2)}%</span>
-          ${gapBadge}
-        </div>
-        <div class="group-actions" onclick="event.stopPropagation()">
-          <button class="btn-sm" onclick="openEditGroupModal('${g.id}')">편집</button>
-          <button class="btn-sm" onclick="openAddItemModal('${g.id}')">＋종목</button>
-          <button class="btn-sm btn-danger" onclick="deleteGroup('${g.id}')">삭제</button>
-        </div>
-        <div class="group-toggle${g.open?' open':''}" id="toggle-${g.id}">▼</div>
       </div>
       <div class="group-progress">
         <div class="group-progress-fill" style="width:${fillPct}%;background:${g.color}"></div>
@@ -835,6 +896,11 @@ function renderGroups(pf){
       </div>
       <div class="group-body${g.open?' open':''}" id="body-${g.id}">
         ${renderItemTable(g,pf)}
+        <div class="group-body-actions">
+          <button class="btn-sm" onclick="openEditGroupModal('${g.id}')">자산군 편집</button>
+          <button class="btn-sm" onclick="openAddItemModal('${g.id}')">＋ 종목 추가</button>
+          <button class="btn-sm btn-danger" onclick="deleteGroup('${g.id}')">삭제</button>
+        </div>
       </div>
     </div>`;
   });
@@ -871,6 +937,7 @@ function renderItemTable(g,pf){
       <td class="mono">${fmt(ev)}원</td>
       <td style="white-space:nowrap">
         <button class="btn-sm" onclick="openEditItemModal('${g.id}','${item.id}')">편집</button>
+        <button class="btn-sm" onclick="openMoveItemModal('${g.id}','${item.id}')" style="margin-left:3px">이동</button>
         <button class="btn-sm btn-danger" onclick="deleteItem('${g.id}','${item.id}')" style="margin-left:3px">삭제</button>
       </td>
     </tr>`;
@@ -1145,7 +1212,147 @@ function setTab(id,el){
   el.classList.add('active');
   document.getElementById('tab-'+id).classList.add('active');
   if(id==='rebal'){document.getElementById('rebal-cash')._set=false;renderRebal();}
+  if(id==='rebal-full'){renderRebalFull();}
   if(id==='rebal-history'){renderRebalHistory();}
+}
+
+// ── MOVE ITEM ─────────────────────────────────────────────
+let moveFromGroupId=null,moveItemId=null;
+function openMoveItemModal(gid,iid){
+  let pf=curPf();if(!pf)return;
+  let g=pf.groups.find(x=>x.id===gid);
+  let item=g.items.find(x=>x.id===iid);
+  moveFromGroupId=gid;moveItemId=iid;
+  document.getElementById('move-item-name').textContent=`"${item.name}" → 이동할 자산군을 선택하세요`;
+  let sel=document.getElementById('move-target-group');
+  sel.innerHTML=pf.groups
+    .filter(x=>x.id!==gid)
+    .map(x=>`<option value="${x.id}">${x.name}</option>`)
+    .join('');
+  document.getElementById('modal-move').style.display='flex';
+}
+function confirmMoveItem(){
+  let pf=curPf();if(!pf)return;
+  let fromG=pf.groups.find(x=>x.id===moveFromGroupId);
+  let toGid=document.getElementById('move-target-group').value;
+  let toG=pf.groups.find(x=>x.id===toGid);
+  let itemIdx=fromG.items.findIndex(x=>x.id===moveItemId);
+  let item=fromG.items.splice(itemIdx,1)[0];
+  toG.items.push(item);
+  closeModal('move');saveState();renderMain();
+  toast(`"${item.name}"을 "${toG.name}"으로 이동했어요.`);
+}
+
+// ── FULL REBALANCING (매도+매수) ──────────────────────────
+function renderRebalFull(){
+  let pf=curPf();if(!pf)return;
+  let ta=pfTotal(pf);
+  let sells=[],buys=[];
+
+  pf.groups.forEach(g=>{
+    let gCurVal=groupEval(g);
+    let gTargetVal=ta*g.target/100;
+    let diff=gTargetVal-gCurVal; // 양수=부족(매수), 음수=초과(매도)
+
+    if(diff<-500){ // 초과 → 매도
+      // 초과분을 모든 종목에서 비율대로 매도
+      let absDiff=Math.abs(diff);
+      g.items.forEach(item=>{
+        if(item.qty===0)return;
+        let itemVal=item.price*item.qty;
+        let ratio=gCurVal>0?itemVal/gCurVal:1/g.items.length;
+        let sellVal=absDiff*ratio;
+        let qty=Math.floor(sellVal/item.price);
+        if(qty<1)return;
+        sells.push({name:item.name,ticker:item.ticker,qty,
+          amount:qty*item.price,price:item.price,
+          groupName:g.name,color:g.color,
+          beforeW:groupActualW(g,pf),
+          afterW:(gCurVal-qty*item.price)/ta*100,
+          targetW:g.target});
+      });
+    } else if(diff>500){ // 부족 → 매수
+      let activeItems=g.items.filter(x=>x.status==='구매');
+      if(activeItems.length===0)return;
+      let activeEval=activeItems.reduce((s,x)=>s+x.price*x.qty,0);
+      activeItems.forEach(item=>{
+        let ratio=activeEval>0?(item.price*item.qty)/activeEval:1/activeItems.length;
+        let needVal=diff*ratio;
+        let qty=Math.floor(needVal/item.price);
+        if(qty<1)return;
+        buys.push({name:item.name,ticker:item.ticker,qty,
+          amount:qty*item.price,price:item.price,
+          groupName:g.name,color:g.color,
+          beforeW:groupActualW(g,pf),
+          afterW:(item.price*item.qty+qty*item.price)/ta*100,
+          targetW:g.target});
+      });
+    }
+  });
+
+  let totalSell=sells.reduce((s,x)=>s+x.amount,0);
+  let totalBuy=buys.reduce((s,x)=>s+x.amount,0);
+  let net=totalBuy-totalSell-pf.cash; // 추가로 필요한 금액 (음수면 잉여)
+
+  let html='';
+
+  if(sells.length>0){
+    html+=`<div style="margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:500;color:var(--grn);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+        <span>매도</span><span style="font-size:11px;color:var(--txt3);font-family:var(--fm)">총 ${fmt(totalSell)}원 회수</span>
+      </div>
+      <div class="rebal-grid">`;
+    sells.forEach(s=>{
+      html+=`<div class="rebal-item" style="border-color:rgba(61,214,140,.2)">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+          <div style="width:7px;height:7px;border-radius:50%;background:${s.color}"></div>
+          <div style="font-size:10px;color:var(--txt3)">${s.groupName}</div>
+        </div>
+        <div class="ri-name">${s.name}</div>
+        <div class="ri-qty pos">${s.qty}<span class="ri-qty-unit">주 매도</span></div>
+        <div class="ri-cost" style="color:var(--grn)">+${fmt(s.amount)}원</div>
+        <div class="ri-after">${s.beforeW.toFixed(2)}% → ${s.afterW.toFixed(2)}% (목표 ${s.targetW.toFixed(2)}%)</div>
+      </div>`;
+    });
+    html+=`</div></div>`;
+  }
+
+  if(buys.length>0){
+    html+=`<div style="margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:500;color:var(--red);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+        <span>매수</span><span style="font-size:11px;color:var(--txt3);font-family:var(--fm)">총 ${fmt(totalBuy)}원 필요</span>
+      </div>
+      <div class="rebal-grid">`;
+    buys.forEach(b=>{
+      html+=`<div class="rebal-item" style="border-color:rgba(240,112,112,.2)">
+        <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+          <div style="width:7px;height:7px;border-radius:50%;background:${b.color}"></div>
+          <div style="font-size:10px;color:var(--txt3)">${b.groupName}</div>
+        </div>
+        <div class="ri-name">${b.name}</div>
+        <div class="ri-qty neg">${b.qty}<span class="ri-qty-unit">주 매수</span></div>
+        <div class="ri-cost">-${fmt(b.amount)}원</div>
+        <div class="ri-after">${b.beforeW.toFixed(2)}% → ${b.afterW.toFixed(2)}% (목표 ${b.targetW.toFixed(2)}%)</div>
+      </div>`;
+    });
+    html+=`</div></div>`;
+  }
+
+  if(!sells.length&&!buys.length){
+    html=`<p style="font-size:13px;color:var(--txt3);padding:8px 0">모든 자산군이 목표비중에 근접해 있습니다.</p>`;
+  }
+
+  // 요약
+  let summaryColor=net<=0?'var(--grn)':'var(--red)';
+  let summaryText=net<=0?`매도 후 ${fmt(Math.abs(net)+pf.cash)}원 잉여`:`추가 ${fmt(net)}원 필요`;
+  html+=`<div style="margin-top:4px;padding:12px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--bdr);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+    <div style="font-size:12px;color:var(--txt3)">매도 ${fmt(totalSell)}원 · 매수 ${fmt(totalBuy)}원 · 현재 예수금 ${fmt(pf.cash)}원</div>
+    <div style="font-size:13px;font-weight:500;color:${summaryColor}">${summaryText}</div>
+  </div>`;
+
+  document.getElementById('rebal-full-result').innerHTML=html;
+  // 이력 저장용 데이터 캐시
+  window._lastFullRebal={sells,buys,totalSell,totalBuy};
 }
 
 // ── REBAL HISTORY ─────────────────────────────────────────
@@ -1154,58 +1361,63 @@ function loadRebalHist(pfId){try{return JSON.parse(localStorage.getItem(rebalHis
 function saveRebalHist(pfId,list){localStorage.setItem(rebalHistKey(pfId),JSON.stringify(list));}
 
 // 현재 리밸런싱 결과를 이력으로 저장
-function saveRebalHistory(){
+function saveRebalHistory(mode){
   let pf=curPf();if(!pf)return;
-  let ci=document.getElementById('rebal-cash');
-  let budget=(parseFloat(ci?.value)||0)+(parseFloat(document.getElementById('rebal-extra')?.value)||0);
-  let ta=pfEval(pf)+budget;
-  let memo=document.getElementById('rebal-memo')?.value.trim()||'';
+  let memo='';
+  let entry;
 
-  // 현재 리밸런싱 결과 수집
-  let groups=[];
-  let totalBuyCalc=0;
-  pf.groups.forEach(g=>{
-    let gCurVal=groupEval(g);
-    let gDiff=ta*g.target/100-gCurVal;
-    if(gDiff<=0)return;
-    let activeItems=g.items.filter(x=>x.status==='구매');
-    if(activeItems.length===0)return;
-    let gapPct=g.target-groupActualW(g,pf);
-    let totalGap=pf.groups.reduce((s,gg)=>{
-      let d=gg.target-groupActualW(gg,pf);
-      return d>0?s+d:s;
-    },0);
-    let allocated=totalGap>0?Math.min(budget*(gapPct/totalGap),gDiff):gDiff;
-    let activeEval=activeItems.reduce((s,x)=>s+x.price*x.qty,0);
-    let items=[];
-    activeItems.forEach(item=>{
-      let ratio=activeEval>0?(item.price*item.qty)/activeEval:1/activeItems.length;
-      let qty=Math.min(Math.floor(allocated*ratio/item.price),Math.floor(budget/item.price));
-      if(qty<1)return;
-      let cost=qty*item.price;
-      totalBuyCalc+=cost;
-      items.push({name:item.name,ticker:item.ticker,qty,cost,price:item.price});
+  if(mode==='full'){
+    memo=document.getElementById('rebal-full-memo')?.value.trim()||'';
+    let d=window._lastFullRebal;
+    if(!d||(!d.sells.length&&!d.buys.length)){toast('저장할 리밸런싱 내용이 없어요.');return;}
+    entry={
+      id:uid(),mode:'full',
+      date:new Date().toISOString().split('T')[0],
+      time:new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}),
+      memo,totalAsset:pfTotal(pf),
+      sells:d.sells,buys:d.buys,
+      totalSell:d.totalSell,totalBuy:d.totalBuy,
+      done:false
+    };
+  } else {
+    memo=document.getElementById('rebal-memo')?.value.trim()||'';
+    let ci=document.getElementById('rebal-cash');
+    let budget=(parseFloat(ci?.value)||0)+(parseFloat(document.getElementById('rebal-extra')?.value)||0);
+    let ta=pfEval(pf)+budget;
+    let groups=[];
+    let totalBuyCalc=0;
+    pf.groups.forEach(g=>{
+      let gCurVal=groupEval(g);
+      let gDiff=ta*g.target/100-gCurVal;
+      if(gDiff<=0)return;
+      let activeItems=g.items.filter(x=>x.status==='구매');
+      if(activeItems.length===0)return;
+      let gapPct=g.target-groupActualW(g,pf);
+      let totalGap=pf.groups.reduce((s,gg)=>{let d=gg.target-groupActualW(gg,pf);return d>0?s+d:s;},0);
+      let allocated=totalGap>0?Math.min(budget*(gapPct/totalGap),gDiff):gDiff;
+      let activeEval=activeItems.reduce((s,x)=>s+x.price*x.qty,0);
+      let items=[];
+      activeItems.forEach(item=>{
+        let ratio=activeEval>0?(item.price*item.qty)/activeEval:1/activeItems.length;
+        let qty=Math.min(Math.floor(allocated*ratio/item.price),Math.floor(budget/item.price));
+        if(qty<1)return;
+        let cost=qty*item.price;
+        totalBuyCalc+=cost;
+        items.push({name:item.name,ticker:item.ticker,qty,cost,price:item.price});
+      });
+      if(items.length>0)groups.push({name:g.name,color:g.color,gapPct,items,
+        beforeW:groupActualW(g,pf),afterW:(gCurVal+items.reduce((s,x)=>s+x.cost,0))/ta*100,targetW:g.target});
     });
-    if(items.length>0)groups.push({name:g.name,color:g.color,gapPct,items,
-      beforeW:groupActualW(g,pf),afterW:(gCurVal+items.reduce((s,x)=>s+x.cost,0))/ta*100,targetW:g.target});
-  });
-
-  if(groups.length===0){toast('저장할 리밸런싱 내용이 없어요.');return;}
-
-  let entry={
-    id:uid(),
-    date:new Date().toISOString().split('T')[0],
-    time:new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}),
-    memo,budget,totalBuy:totalBuyCalc,
-    totalAsset:pfTotal(pf),
-    groups,
-    done:false // 실행 여부
-  };
+    if(groups.length===0){toast('저장할 리밸런싱 내용이 없어요.');return;}
+    entry={id:uid(),mode:'buy',date:new Date().toISOString().split('T')[0],
+      time:new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}),
+      memo,budget,totalBuy:totalBuyCalc,totalAsset:pfTotal(pf),groups,done:false};
+  }
 
   let list=loadRebalHist(pf.id);
   list.unshift(entry);
   saveRebalHist(pf.id,list);
-  document.getElementById('rebal-memo').value='';
+  document.getElementById(mode==='full'?'rebal-full-memo':'rebal-memo').value='';
   toast('리밸런싱 이력이 저장됐어요.');
 }
 
@@ -1246,24 +1458,52 @@ function renderRebalHistory(){
       ?`<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--grn-bg);color:var(--grn);border:1px solid rgba(61,214,140,.2);font-weight:500">✓ 실행완료</span>`
       :`<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--bg3);color:var(--txt3);border:1px solid var(--bdr)">대기중</span>`;
 
-    let groupRows=e.groups.map(g=>`
-      <div style="margin-bottom:10px">
-        <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
-          <div style="width:8px;height:8px;border-radius:50%;background:${g.color};flex-shrink:0"></div>
-          <span style="font-size:12px;font-weight:500">${g.name}</span>
-          <span style="font-size:11px;color:var(--txt3);font-family:var(--fm)">${g.beforeW.toFixed(2)}% → ${g.afterW.toFixed(2)}% (목표 ${g.targetW.toFixed(2)}%)</span>
+    let modeBadge=e.mode==='full'
+      ?`<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--amber-bg);color:var(--amber);border:1px solid rgba(245,200,66,.2);font-weight:500">매도+매수</span>`
+      :`<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--blue-bg);color:var(--blue);border:1px solid rgba(77,157,224,.2);font-weight:500">매수전용</span>`;
+
+    let bodyHtml='';
+    if(e.mode==='full'){
+      if(e.sells?.length){
+        bodyHtml+=`<div style="font-size:11px;font-weight:500;color:var(--grn);margin-bottom:6px">매도</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">`;
+        e.sells.forEach(s=>{bodyHtml+=`<div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:6px;padding:7px 10px;font-size:12px">
+            <div style="font-weight:500;margin-bottom:2px">${s.name}</div>
+            <div style="font-family:var(--fm);font-size:15px;color:var(--grn);font-weight:500">${s.qty}<span style="font-size:11px;font-weight:400">주</span></div>
+            <div style="font-family:var(--fm);font-size:11px;color:var(--txt3)">+${fmt(s.amount)}원</div>
+          </div>`;});
+        bodyHtml+=`</div>`;
+      }
+      if(e.buys?.length){
+        bodyHtml+=`<div style="font-size:11px;font-weight:500;color:var(--red);margin-bottom:6px">매수</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">`;
+        e.buys.forEach(b=>{bodyHtml+=`<div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:6px;padding:7px 10px;font-size:12px">
+            <div style="font-weight:500;margin-bottom:2px">${b.name}</div>
+            <div style="font-family:var(--fm);font-size:15px;color:var(--red);font-weight:500">${b.qty}<span style="font-size:11px;font-weight:400">주</span></div>
+            <div style="font-family:var(--fm);font-size:11px;color:var(--txt3)">-${fmt(b.amount)}원</div>
+          </div>`;});
+        bodyHtml+=`</div>`;
+      }
+    } else {
+      bodyHtml=e.groups?.map(g=>`
+        <div style="margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
+            <div style="width:8px;height:8px;border-radius:50%;background:${g.color};flex-shrink:0"></div>
+            <span style="font-size:12px;font-weight:500">${g.name}</span>
+            <span style="font-size:11px;color:var(--txt3);font-family:var(--fm)">${g.beforeW.toFixed(2)}% → ${g.afterW.toFixed(2)}% (목표 ${g.targetW.toFixed(2)}%)</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;padding-left:15px">
+            ${g.items.map(item=>`
+              <div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:6px;padding:7px 10px;font-size:12px">
+                <div style="font-weight:500;margin-bottom:2px">${item.name}</div>
+                <div style="font-family:var(--fm);font-size:15px;color:var(--red);font-weight:500">${item.qty}<span style="font-size:11px;font-weight:400">주</span></div>
+                <div style="font-family:var(--fm);font-size:11px;color:var(--txt3)">-${fmt(item.cost)}원</div>
+              </div>
+            `).join('')}
+          </div>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;padding-left:15px">
-          ${g.items.map(item=>`
-            <div style="background:var(--bg3);border:1px solid var(--bdr);border-radius:6px;padding:7px 10px;font-size:12px;">
-              <div style="font-weight:500;margin-bottom:2px">${item.name}</div>
-              <div style="font-family:var(--fm);font-size:15px;color:var(--red);font-weight:500">${item.qty}<span style="font-size:11px;font-weight:400">주</span></div>
-              <div style="font-family:var(--fm);font-size:11px;color:var(--txt3)">−${fmt(item.cost)}원 · ${item.price.toLocaleString()}원/주</div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    `).join('');
+      `).join('')||'';
+    }
 
     return `<div style="${doneStyle}background:var(--bg2);border:1px solid var(--bdr);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;">
       <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--bdr);flex-wrap:wrap;">
@@ -1271,11 +1511,14 @@ function renderRebalHistory(){
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <span style="font-size:13px;font-weight:500;font-family:var(--fm)">${e.date}</span>
             <span style="font-size:11px;color:var(--txt3)">${e.time}</span>
+            ${modeBadge}
             ${doneBadge}
             ${e.memo?`<span style="font-size:12px;color:var(--txt2)">${e.memo}</span>`:''}
           </div>
           <div style="font-size:11px;color:var(--txt3);margin-top:3px;font-family:var(--fm)">
-            총 매수금액 ${fmt(e.totalBuy)}원 · 예수금 ${fmt(e.budget)}원 사용
+            ${e.mode==='full'
+              ?`매도 ${fmt(e.totalSell||0)}원 · 매수 ${fmt(e.totalBuy||0)}원`
+              :`총 매수금액 ${fmt(e.totalBuy)}원 · 예수금 ${fmt(e.budget)}원 사용`}
           </div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
@@ -1283,7 +1526,7 @@ function renderRebalHistory(){
           <button class="btn-sm btn-danger" onclick="deleteRebalEntry('${e.id}')">삭제</button>
         </div>
       </div>
-      <div style="padding:12px 14px">${groupRows}</div>
+      <div style="padding:12px 14px">${bodyHtml}</div>
     </div>`;
   }).join('');
 
